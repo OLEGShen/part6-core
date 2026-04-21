@@ -1,197 +1,236 @@
 # Part6-Core
 
-本仓库对应论文中“外卖平台骑手行为与系统演化”实验的核心代码，包含内容：
+This repository contains the core code for the paper's experiments on rider behavior and system evolution in food-delivery platforms. It includes:
 
-- `simulation/` 与相关运行脚本：从原始 `SocialInvolution` 示例中整理出的、适合公开展示的轻量化模拟实现
+- `simulation/` and related execution scripts: a cleaned and publishable simulation derived from the original `SocialInvolution` example
+- experiment-analysis scripts for real logs, simulation results, and mechanism-level thought tracing
 
-当前仓库保留论文实验所需的核心流程，使代码结构更清晰、可多次运行、可直接分析。
+The current version is organized for reproducibility, repeated simulation, and direct paper-oriented analysis.
 
-## 仓库内容
+## Repository Contents
 
-### 1. 真实实验数据分析
+### 1. Real Experiment Analysis
 
-- `analyze_experiments.py`：统计骑手与系统级指标
-- `analyze_thoughts.py`：分析 thought 文本与绩效关系
-- `1_analyze_thoughts_with_llm.py`：使用大模型抽取 thought 关键词
-- `analyze_intention_behavior.py`：分析意图与行为变化的关系
-- `4_generate_experiment_heatmaps.py`：生成轨迹热力图
-- `generate_evolution_sankey.py`：生成意图演化桑基图
-- `generate_core_figure.py`：生成论文核心组合图
+- `analyze_experiments.py`: computes rider-level and system-level metrics from experimental logs
+- `analyze_thoughts.py`: analyzes the relationship between thought text and performance
+- `analyze_thoughts_with_llm.py`: extracts thought keywords with an LLM
+- `analyze_intention_behavior.py`: analyzes intention-behavior correlations
+- `generate_experiment_heatmaps.py`: generates trajectory heatmaps
+- `generate_evolution_sankey.py`: generates intention-evolution Sankey diagrams
+- `generate_core_figure.py`: generates the combined paper figure
 
-### 2. 重构后的模拟模块
+### 2. Refactored Simulation Modules
 
-- `simulation/order.py`：订单对象定义
-- `simulation/order_generator.py`：订单时序生成
-- `simulation/rider.py`：骑手行为逻辑
-- `simulation/platform.py`：平台状态与指标更新
-- `simulation/city.py`：模拟环境调度器
-- `simulation/individual_cal.py`：骑手个体指标
-- `simulation/sys_cal.py`：平台系统指标
-- `simulation/dispatch.py`：订单分配与简单路径逻辑
+- `simulation/order.py`: order entity definition
+- `simulation/order_generator.py`: Gaussian-mixture order generation
+- `simulation/rider.py`: rider agent logic
+- `simulation/platform.py`: platform state and system metrics
+- `simulation/city.py`: simulation environment coordinator
+- `simulation/individual_cal.py`: rider-level metrics
+- `simulation/sys_cal.py`: platform-level welfare and involution metrics
+- `simulation/dispatch.py`: dispatch and routing heuristics
+- `simulation/llm_agent.py`: LLM-backed rider decision module
 
-### 3. 模拟运行与结果分析
+### 3. Simulation and Causal Analysis
 
-- `run_simulation.py`：执行单次或多次模拟
-- `analyze_simulation.py`：分析多次模拟结果
-- `analyze_multi_source.py`：将模拟结果与 `exp1` 到 `exp5` 做对比
+- `run_simulation.py`: runs one or multiple simulations
+- `run_observation_analysis.py`: observation analysis corresponding to Algorithm 7-1
+- `run_intervention_analysis.py`: intervention analysis corresponding to Algorithm 7-2
+- `run_mechanism_analysis.py`: mechanism analysis corresponding to Algorithm 7-3
+- `analyze_simulation.py`: analyzes repeated simulation outputs
+- `analyze_multi_source.py`: compares simulation results with `exp1` to `exp5`
 
-## 目录说明
+## Directory Overview
 
 ```text
 part6-core/
-├── simulation/               # 重构后的模拟代码
-├── simulation_results/       # 多次模拟输出结果
-├── analysis_results/         # 分析图表与汇总结果
-├── run_simulation.py         # 模拟入口
-├── analyze_simulation.py     # 模拟结果分析
-├── analyze_multi_source.py   # 模拟与真实数据对比
+├── simulation/                 # Refactored simulation code
+├── simulation_results/         # Simulation outputs
+├── analysis_results/           # Figures and summary tables
+├── paper_figures/              # Paper figure assets and source files
+├── config.py                   # Centralized paper-aligned configuration
+├── run_simulation.py           # Simulation entrypoint
+├── run_observation_analysis.py # Algorithm 7-1
+├── run_intervention_analysis.py# Algorithm 7-2
+├── run_mechanism_analysis.py   # Algorithm 7-3
 └── README.md
 ```
 
-## 环境依赖
+## Requirements
 
-建议使用 Python 3.9 及以上版本。
+Python 3.9+ is recommended.
 
-安装依赖：
-
-```bash
-pip install numpy pandas matplotlib seaborn openai
-```
-
-如果需要运行基于大模型的 thought 关键词抽取，还需要额外配置对应的 API Key。
-
-## 快速开始
-
-### 1. 运行模拟
-
-单次模拟：
+Install dependencies:
 
 ```bash
-python run_simulation.py --num_runs 1 --rider_num 50 --run_len 360
+pip install -r requirements.txt
 ```
 
-多次模拟：
+If you want to run LLM-based thought extraction or LLM rider decisions, you also need to configure an API key.
+
+## Quick Start
+
+The default parameters in `python run_simulation.py` are already aligned with Section 7.4.2 of the paper:
+
+- `rider_num = 100`
+- `run_len = 3600`
+- `num_runs = 10`
+- `business_district_num = 10`
+- `llm temperature = 0`
+- `llm model = DeepSeek-R1-Distill-Qwen-32B`
+
+### 1. Run the simulation
+
+Default paper-aligned run:
 
 ```bash
-python run_simulation.py --num_runs 10 --rider_num 50 --run_len 360 --seed_base 42
+python run_simulation.py
 ```
 
-常用参数：
-
-- `--num_runs`：模拟重复次数，默认 `5`
-- `--rider_num`：骑手数量，默认 `50`
-- `--run_len`：总步数，默认 `360`
-- `--one_day`：一天对应的步数，默认 `120`
-- `--order_weight`：订单生成强度系数，默认 `0.3`
-- `--seed_base`：随机种子基值，便于复现
-- `--no_detail`：只保留聚合结果，不输出每轮详细文件
-- `--decision_mode`：骑手决策模式，可选 `auto`、`llm`、`heuristic`
-- `--llm_model`：指定 LLM 模型名
-- `--llm_base_url`：指定兼容 OpenAI 的模型服务地址
-
-### 2. 启用 LLM 骑手决策
-
-当前版本已经支持“真正基于 LLM 的骑手决策”，包括：
-
-- 每日上下班时间决策
-- 每轮候选订单选择
-- 决策过程 `thought` 记录
-
-默认推荐先设置环境变量：
+Single-run test:
 
 ```bash
-export DASHSCOPE_API_KEY=你的密钥
+python run_simulation.py --num_runs 1
 ```
 
-然后运行：
+Common parameters:
+
+- `--num_runs`: number of repeated simulations, default `10`
+- `--rider_num`: number of riders, default `100`
+- `--run_len`: total simulation steps, default `3600`
+- `--one_day`: steps per day, default `120`
+- `--order_weight`: order-generation intensity, default `0.3`
+- `--seed_base`: base random seed, default `42`
+- `--no_detail`: skip per-run detailed outputs
+- `--decision_mode`: `auto`, `llm`, or `heuristic`
+- `--llm_model`: LLM model name
+- `--llm_base_url`: OpenAI-compatible API endpoint
+
+### 2. Enable LLM Rider Decisions
+
+The current version supports real LLM-based rider decisions for:
+
+- daily work-time adjustment
+- order-selection decisions
+- traceable `*_thought.json` outputs
+
+Set the API key first:
 
 ```bash
-python run_simulation.py --num_runs 3 --rider_num 20 --run_len 120 --decision_mode llm
+export DASHSCOPE_API_KEY=your_key
 ```
 
-说明：
+Then run:
 
-- `decision_mode=llm`：强制使用 LLM 决策，若缺少依赖或密钥会直接报错
-- `decision_mode=heuristic`：使用规则版骑手
-- `decision_mode=auto`：检测到 `DASHSCOPE_API_KEY` 时使用 LLM，否则退回规则版
+```bash
+python run_simulation.py --decision_mode llm
+```
 
-## 输出结果
+Notes:
 
-运行 `run_simulation.py` 后，结果会保存在 `simulation_results/`：
+- `decision_mode=llm`: forces LLM decisions and fails fast if dependencies or keys are missing
+- `decision_mode=heuristic`: uses the rule-based rider
+- `decision_mode=auto`: uses LLM if `DASHSCOPE_API_KEY` is available, otherwise falls back to the heuristic version
 
-- `sim_0/`, `sim_1/` ...：每次模拟的单独结果目录
-- `rider_summary.csv`：单轮骑手汇总
-- `platform_summary.csv`：单轮平台汇总
-- `run_config.csv`：单轮模拟配置
-- `*_thought.json`：每个骑手的决策 thought 日志
-- `aggregated_results.csv`：多轮模拟拼接后的总表
-- `summary_statistics.csv`：多轮模拟统计摘要
+## Outputs
 
-## 结果分析
+After running `run_simulation.py`, results are stored in `simulation_results/`:
 
-### 1. 分析多次模拟结果
+- `sim_0/`, `sim_1/`, ...: one folder per run
+- `rider_summary.csv`: rider-level summary for one run
+- `platform_summary.csv`: platform-level summary for one run
+- `run_config.csv`: configuration of one run
+- `time_series.csv`: time-series metrics for one run
+- `rider_positions.json`: rider position snapshots for heatmap analysis
+- `*_thought.json`: rider decision traces
+- `aggregated_results.csv`: combined multi-run results
+- `summary_statistics.csv`: aggregated summary statistics
+
+## Analysis Pipeline
+
+### 1. Simulation-Level Analysis
 
 ```bash
 python analyze_simulation.py
 ```
 
-主要输出：
-
-- 跨轮次骑手指标统计
-- 跨轮次平台指标统计
-- 稳定性分析
-- 柱状图与分布图，保存在 `analysis_results/`
-
-### 2. 与真实实验数据对比
+### 2. Observation Layer
 
 ```bash
-python analyze_simulation.py --compare
+python run_observation_analysis.py
 ```
 
-或直接执行：
+This generates:
+
+- Figure 7-9(a): involution-level distribution
+- Figure 7-9(b): involution timeline across repeated runs
+- Figure 7-10: rider activity heatmaps
+
+### 3. Intervention Layer
 
 ```bash
-python analyze_multi_source.py
+python run_intervention_analysis.py
 ```
 
-该步骤会将模拟结果与 `exp1` 到 `exp5` 中的真实实验数据进行统一指标对比，并输出对比表与箱线图。
+This generates:
 
-## 论文实验数据分析流程
+- Figure 7-11(a): intervention boxplot
+- Figure 7-11(d): SEM path coefficients
 
-若只分析已有实验数据，建议执行顺序如下：
+### 4. Mechanism Layer
 
-1. `python analyze_experiments.py`
-2. 如需关键词抽取，先配置 API Key，再运行 `python 1_analyze_thoughts_with_llm.py`
-3. `python analyze_thoughts.py`
-4. `python analyze_intention_behavior.py`
-5. `python 4_generate_experiment_heatmaps.py`
-6. `python generate_evolution_sankey.py`
-7. `python generate_core_figure.py`
+```bash
+python run_mechanism_analysis.py
+```
 
-## 指标说明
+This generates:
 
-### 个体层
+- Figure 7-12(a-c): clustered intention evolution
+- Figure 7-12(d-f): intention-behavior correlation heatmaps
+- Figure 7-12(g): intention-evolution Sankey diagram
+- Figure 7-12(h-k): behavior transition comparison under different contexts
 
-- `money`：骑手累计收益
-- `labor`：骑手累计劳动成本或移动量
-- `total_order`：完成订单数
-- `stability`：收益稳定性
-- `robustness`：对波动的稳健性
-- `inv`：收益与成本比值
-- `utility`：综合效用
+### 5. One-Click Reproduction
 
-### 平台层
+```bash
+bash reproduce_paper.sh
+```
 
-- `profit`：平台收益
-- `fairness`：骑手收益分配公平性
-- `variety`：骑手策略多样性
-- `entropy_increase`：系统演化中的熵增速率
-- `utility`：平台综合效用
+## Paper Mapping
 
-## 说明
+### Figure/Table Mapping
 
-- 本仓库中的模拟代码是对原始 `SocialInvolution` 示例的整理与精简，目标是服务论文复现与公开发布。
-- 为保证结构清晰，当前实现保留了论文分析所需的核心机制，但没有引入原工程中的全部复杂依赖与冗余模块。
-- 当前仓库同时支持两种骑手决策模式：规则版 `heuristic` 与大模型版 `llm`。
-- 在 `llm` 模式下，骑手会输出可追踪的 thought 记录，格式与原始实验中的 `*_thought.json` 保持相近。
+| Paper Figure/Table | Content | Script | Key Function |
+|----------|------|---------|---------|
+| Table 7-3 | Simulation vs. real data comparison (MAE/RMSE/r) | `analyze_simulation.py` | `compare_with_zomato()` |
+| Table 7-4 | Real-computational system mapping | documentation only | — |
+| Figure 7-9(a) | Involution-level experimental distribution | `run_observation_analysis.py` | `plot_involution_distribution()` |
+| Figure 7-9(b) | Involution timeline | `run_observation_analysis.py` | `plot_involution_timeline()` |
+| Figure 7-10 | Rider activity heatmap | `generate_experiment_heatmaps.py` | `generate_heatmap()` |
+| Figure 7-11(a) | Intervention boxplot | `run_intervention_analysis.py` | `plot_intervention_boxplot()` |
+| Figure 7-11(d) | SEM path coefficients | `run_intervention_analysis.py` | `compute_sem_coefficients()` |
+| Figure 7-12(a-c) | Intention clustering evolution | `run_mechanism_analysis.py` | `cluster_intentions()` |
+| Figure 7-12(d-f) | Intention-behavior correlation | `analyze_intention_behavior.py` | `compute_correlation_matrix()` |
+| Figure 7-12(g) | Intention evolution Sankey diagram | `generate_evolution_sankey.py` | `build_sankey()` |
 
+### Formula Mapping
+
+| Paper Formula | Meaning | File | Function |
+|------------|------|---------|-------|
+| Rider Utility CRRA | Individual utility | `simulation/individual_cal.py` | `compute_utility()` |
+| Swf social welfare | Platform welfare | `simulation/sys_cal.py` | `compute_swf()` |
+| Involution(t) | Involution index | `simulation/sys_cal.py` | `compute_involution()` |
+| Formula (1) `I(X;Y\|Z)` | Conditional mutual information | `analyze_simulation.py` | `conditional_mutual_info()` |
+| Formula (2) `Effect(x)` | Intervention effect ATE | `run_intervention_analysis.py` | `compute_ate()` |
+| Formula (3) `P(Y\|do(X))` | Backdoor adjustment | `run_intervention_analysis.py` | `backdoor_adjustment()` |
+| Mechanism Formula (1) `Cs/Cr` | Dual-view thought extraction | `run_mechanism_analysis.py` | `extract_dual_thoughts()` |
+| Mechanism Formula (2) | Emergent intention detection | `run_mechanism_analysis.py` | `detect_emergent_intention()` |
+| Mechanism Formula (3) | Cosine similarity | `run_mechanism_analysis.py` | `cosine_similarity()` |
+| Mechanism Formula (4) | Intention clustering | `run_mechanism_analysis.py` | `cluster_intentions()` |
+
+## Notes
+
+- This repository is a cleaned and compressed version of the original `SocialInvolution` project for paper reproduction and public release.
+- The code now supports both a rule-based rider (`heuristic`) and an LLM-based rider (`llm`).
+- In `llm` mode, the rider outputs traceable thought records in `*_thought.json`.
+- The analysis scripts are designed to work even if `exp1` to `exp5` are not included in the public repository, as long as equivalent input data are provided later.

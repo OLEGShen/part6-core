@@ -21,6 +21,40 @@ def calculate_distance(x1, y1, x2, y2):
         return 0.0
 
 
+def conditional_mutual_info(x, y, z, bins=10):
+    r"""Estimate conditional mutual information I(X;Y|Z) with histogram binning.
+
+    对应论文公式 (1)
+    LaTeX: I(X;Y\mid Z)
+    """
+
+    x = np.asarray(x)
+    y = np.asarray(y)
+    z = np.asarray(z)
+    if len(x) == 0 or len(y) == 0 or len(z) == 0:
+        return 0.0
+
+    x_bins = pd.qcut(x, q=min(bins, len(np.unique(x))), duplicates="drop", labels=False)
+    y_bins = pd.qcut(y, q=min(bins, len(np.unique(y))), duplicates="drop", labels=False)
+    z_bins = pd.qcut(z, q=min(bins, len(np.unique(z))), duplicates="drop", labels=False)
+    df = pd.DataFrame({"x": x_bins, "y": y_bins, "z": z_bins}).dropna()
+    if df.empty:
+        return 0.0
+
+    total = len(df)
+    mi = 0.0
+    for z_value, group in df.groupby("z"):
+        p_z = len(group) / total
+        p_xy = group.groupby(["x", "y"]).size() / len(group)
+        p_x = group.groupby("x").size() / len(group)
+        p_y = group.groupby("y").size() / len(group)
+        for (x_value, y_value), p_xy_value in p_xy.items():
+            denom = p_x[x_value] * p_y[y_value]
+            if p_xy_value > 0 and denom > 0:
+                mi += p_z * p_xy_value * np.log(p_xy_value / denom)
+    return float(mi)
+
+
 def analyze_simulation_results():
     os.makedirs(ANALYSIS_DIR, exist_ok=True)
 
@@ -150,7 +184,7 @@ def _generate_visualizations(df):
     print(f"Visualizations saved to: {ANALYSIS_DIR}")
 
 
-def compare_with_real_data(simulation_file=None):
+def compare_with_zomato(simulation_file=None):
     print("\n" + "=" * 60)
     print("Comparing Simulation with Real Experimental Data")
     print("=" * 60)
@@ -221,6 +255,12 @@ def _load_experimental_metrics(exp_dirs):
     }
 
 
+def compare_with_real_data(simulation_file=None):
+    """Backward-compatible alias for the paper comparison function."""
+
+    return compare_with_zomato(simulation_file)
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description='Analyze Simulation Results')
@@ -232,7 +272,7 @@ def main():
     analyze_simulation_results()
 
     if args.compare:
-        compare_with_real_data(args.simulation_file)
+        compare_with_zomato(args.simulation_file)
 
 
 if __name__ == '__main__':

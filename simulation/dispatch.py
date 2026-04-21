@@ -1,13 +1,23 @@
+"""Dispatch heuristics used by the platform/rider interaction.
+
+Model element mapping (Table 7-4): Rule model.
+These helpers provide route construction for batches of accepted orders.
+"""
+
 import math
 
 
 def distance(location, other):
+    """Compute Euclidean distance between two grid locations."""
+
     x1, y1 = location
     x2, y2 = other
     return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
 
 def objective(route, orders):
+    """Score a route by total travel distance plus delivery delay."""
+
     total_delay = 0
     total_distance = 0
     current_time = 0
@@ -30,6 +40,8 @@ def objective(route, orders):
 
 
 def is_valid_route(route, orders):
+    """Check pickup-before-delivery feasibility for a route."""
+
     picked_up_orders = set()
     for event_type, order_id in route:
         if event_type == 'pickup':
@@ -42,6 +54,8 @@ def is_valid_route(route, orders):
 
 
 def local_search(route, orders):
+    """Improve a route with a simple neighborhood search."""
+
     best_route = route
     best_value = objective(route, orders)
     while True:
@@ -64,6 +78,8 @@ def local_search(route, orders):
 
 
 def greedy_insertion_with_clustering(orders, rider, D=50):
+    """Insert order events greedily after spatial clustering."""
+
     events = []
     for order in orders:
         events.append(('pickup', order.id))
@@ -95,6 +111,8 @@ def greedy_insertion_with_clustering(orders, rider, D=50):
 
 
 def hierarchical_clustering(locations, D):
+    """Group nearby locations into coarse spatial clusters."""
+
     clusters = []
     for location in locations:
         assigned = False
@@ -109,6 +127,8 @@ def hierarchical_clustering(locations, D):
 
 
 def two_stage_fast_heuristic(orders, riders, D=50):
+    """Run the two-stage dispatch heuristic for all riders."""
+
     for rider in riders:
         greedy_insertion_with_clustering(orders, rider, D)
         rider.route = local_search(rider.route, orders)

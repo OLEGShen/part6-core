@@ -21,5 +21,28 @@
     },
     "think": "基于昨日收益排名进行启发式调整工作时长。",
     "decision_backend": "heuristic"
+  },
+  {
+    "runner_step": 0,
+    "event_type": "work_time",
+    "param_dict": {
+      "before_go_work_time": 8,
+      "before_get_off_work_time": 18,
+      "rider_num": 5,
+      "money_rank": 2,
+      "dis_rank": 2,
+      "order_rank": 2,
+      "money_day": 0,
+      "dis_day": 0,
+      "order_day": 0
+    },
+    "mixed_thought": "",
+    "result": {
+      "go_work_time": 8,
+      "get_off_work_time": 18,
+      "decision_backend": "heuristic"
+    },
+    "think": "基于昨日收益排名进行启发式调整工作时长。",
+    "decision_backend": "heuristic"
   }
 ]

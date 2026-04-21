@@ -1,12 +1,15 @@
 import os
 import csv
 import argparse
+import json
+
+from config import LLM_CONFIG, SIMULATION_CONFIG, SIMULATION_RESULTS_DIR
 from simulation.city import City
 from simulation.llm_agent import LLMDecisionError
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RESULTS_DIR = os.path.join(BASE_DIR, 'simulation_results')
+RESULTS_DIR = str(SIMULATION_RESULTS_DIR)
 
 
 def run_single_simulation(
@@ -20,6 +23,8 @@ def run_single_simulation(
     decision_mode="auto",
     llm_model=None,
     llm_base_url=None,
+    business_district_num=SIMULATION_CONFIG.business_district_num,
+    prompt_complexity="medium",
 ):
     print(f"[Run {run_id}] Starting simulation: riders={rider_num}, steps={run_len}, seed={seed}")
 
@@ -37,6 +42,8 @@ def run_single_simulation(
         decision_mode=decision_mode,
         llm_model=llm_model,
         llm_base_url=llm_base_url,
+        business_district_num=business_district_num,
+        prompt_complexity=prompt_complexity,
     )
 
     for step in range(run_len):
@@ -60,9 +67,12 @@ def run_single_simulation(
                 "decision_mode": decision_mode,
                 "llm_model": llm_model or "",
                 "llm_base_url": llm_base_url or "",
+                "business_district_num": business_district_num,
+                "prompt_complexity": prompt_complexity,
             },
             save_path,
         )
+        _save_time_series(results["time_series"], save_path)
 
     print(f"[Run {run_id}] Completed. Rider utility: {results['platform_record']['utility']:.2f}")
     return results, save_path
@@ -108,8 +118,28 @@ def _save_run_config(run_config, save_path):
             writer.writerow([key, value])
 
 
-def run_multiple_simulations(num_runs=5, rider_num=50, run_len=360, one_day=120,
-                              order_weight=0.3, seed_base=42, save_detail=True,
+def _save_time_series(time_series, save_path):
+    series_file = os.path.join(save_path, "time_series.csv")
+    with open(series_file, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["step", "involution", "swf", "platform_profit", "active_riders"])
+        for step, involution, swf, profit, active_riders in zip(
+            time_series["step"],
+            time_series["involution"],
+            time_series["swf"],
+            time_series["platform_profit"],
+            time_series["active_riders"],
+        ):
+            writer.writerow([step, involution, swf, profit, active_riders])
+
+    positions_file = os.path.join(save_path, "rider_positions.json")
+    with open(positions_file, "w", encoding="utf-8") as f:
+        json.dump(time_series["rider_positions"], f, ensure_ascii=False, indent=2)
+
+
+def run_multiple_simulations(num_runs=SIMULATION_CONFIG.num_runs, rider_num=SIMULATION_CONFIG.rider_num,
+                              run_len=SIMULATION_CONFIG.run_len, one_day=SIMULATION_CONFIG.one_day,
+                              order_weight=SIMULATION_CONFIG.order_weight, seed_base=SIMULATION_CONFIG.seed_base, save_detail=True,
                               decision_mode="auto", llm_model=None, llm_base_url=None):
     print(f"{'='*60}")
     print(f"Running {num_runs} simulations with {rider_num} riders")
@@ -131,6 +161,7 @@ def run_multiple_simulations(num_runs=5, rider_num=50, run_len=360, one_day=120,
             decision_mode=decision_mode,
             llm_model=llm_model,
             llm_base_url=llm_base_url,
+            business_district_num=SIMULATION_CONFIG.business_district_num,
         )
         all_results.append({
             'run_id': run_id,
@@ -151,7 +182,7 @@ def _aggregate_results(all_results, num_runs, rider_num, run_len):
         writer.writerow(['run_id', 'rider_id', 'money', 'labor', 'total_order',
                        'stability', 'robustness', 'inv', 'utility',
                        'platform_profit', 'platform_fairness', 'platform_variety',
-                       'platform_entropy', 'platform_utility'])
+                       'platform_entropy', 'platform_utility', 'platform_swf', 'platform_involution'])
 
         for run_data in all_results:
             run_id = run_data['run_id']
@@ -173,7 +204,9 @@ def _aggregate_results(all_results, num_runs, rider_num, run_len):
                     platform['fairness'],
                     platform['variety'],
                     platform['entropy_increase'],
-                    platform['utility']
+                    platform['utility'],
+                    platform['swf'],
+                    platform['involution'],
                 ])
 
     _generate_summary_stats(all_results)
@@ -185,7 +218,7 @@ def _generate_summary_stats(all_results):
     rider_metrics = {'money': [], 'labor': [], 'total_order': [],
                      'stability': [], 'robustness': [], 'inv': [], 'utility': []}
     platform_metrics = {'profit': [], 'fairness': [], 'variety': [],
-                       'entropy_increase': [], 'utility': []}
+                       'entropy_increase': [], 'utility': [], 'swf': [], 'involution': []}
 
     for run_data in all_results:
         results = run_data['results']
@@ -251,12 +284,12 @@ def _std(values):
 
 def main():
     parser = argparse.ArgumentParser(description='Run Meituan Rider Simulation')
-    parser.add_argument('--num_runs', type=int, default=5, help='Number of simulation runs')
-    parser.add_argument('--rider_num', type=int, default=50, help='Number of riders')
-    parser.add_argument('--run_len', type=int, default=360, help='Number of simulation steps')
-    parser.add_argument('--one_day', type=int, default=120, help='Steps per day')
-    parser.add_argument('--order_weight', type=float, default=0.3, help='Order generation weight')
-    parser.add_argument('--seed_base', type=int, default=42, help='Base random seed')
+    parser.add_argument('--num_runs', type=int, default=SIMULATION_CONFIG.num_runs, help='Number of simulation runs')
+    parser.add_argument('--rider_num', type=int, default=SIMULATION_CONFIG.rider_num, help='Number of riders')
+    parser.add_argument('--run_len', type=int, default=SIMULATION_CONFIG.run_len, help='Number of simulation steps')
+    parser.add_argument('--one_day', type=int, default=SIMULATION_CONFIG.one_day, help='Steps per day')
+    parser.add_argument('--order_weight', type=float, default=SIMULATION_CONFIG.order_weight, help='Order generation weight')
+    parser.add_argument('--seed_base', type=int, default=SIMULATION_CONFIG.seed_base, help='Base random seed')
     parser.add_argument('--no_detail', action='store_true', help='Skip saving detailed results')
     parser.add_argument(
         '--decision_mode',
@@ -264,7 +297,7 @@ def main():
         default='auto',
         help='Rider decision backend: auto / llm / heuristic',
     )
-    parser.add_argument('--llm_model', type=str, default=None, help='LLM model name')
+    parser.add_argument('--llm_model', type=str, default=LLM_CONFIG.model, help='LLM model name')
     parser.add_argument('--llm_base_url', type=str, default=None, help='LLM API base URL')
 
     args = parser.parse_args()

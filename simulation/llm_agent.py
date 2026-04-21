@@ -3,6 +3,8 @@ import os
 import re
 from typing import Any, Dict, List
 
+from config import LLM_CONFIG
+
 try:
     from openai import OpenAI
 except Exception:  # pragma: no cover - optional dependency at runtime
@@ -14,13 +16,20 @@ class LLMDecisionError(RuntimeError):
 
 
 class RiderLLMAgent:
-    def __init__(self, api_key=None, base_url=None, model=None, temperature=0.3):
-        self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY")
+    """LLM-backed rider decision maker.
+
+    Model element mapping (Table 7-4): Agent model.
+    `simulation.rider.Rider` calls this helper for work-time and order decisions.
+    """
+
+    def __init__(self, api_key=None, base_url=None, model=None, temperature=None, prompt_complexity="medium"):
+        self.api_key = api_key or os.getenv(LLM_CONFIG.api_key_env)
         self.base_url = base_url or os.getenv(
-            "DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            LLM_CONFIG.base_url_env, LLM_CONFIG.default_base_url
         )
-        self.model = model or os.getenv("DASHSCOPE_MODEL", "qwen-plus")
-        self.temperature = temperature
+        self.model = model or os.getenv(LLM_CONFIG.model_env, LLM_CONFIG.model)
+        self.temperature = LLM_CONFIG.temperature if temperature is None else temperature
+        self.prompt_complexity = prompt_complexity
 
         if OpenAI is None:
             raise LLMDecisionError("未安装 openai 包，无法启用 LLM 骑手决策。")
@@ -28,6 +37,13 @@ class RiderLLMAgent:
             raise LLMDecisionError("未设置 DASHSCOPE_API_KEY，无法启用 LLM 骑手决策。")
 
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+
+    def _complexity_instruction(self) -> str:
+        if self.prompt_complexity == "high":
+            return "请综合考虑收益、风险、体力、订单空间分布与平台竞争状态，给出更完整的推理。"
+        if self.prompt_complexity == "low":
+            return "请基于最关键的 1-2 个因素快速决策。"
+        return "请在收益与风险之间做平衡决策。"
 
     def _call_json(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
         try:
@@ -64,6 +80,7 @@ class RiderLLMAgent:
 {json.dumps(decision_context, ensure_ascii=False)}
 
 请你基于以上信息做出今天的工作时间决策。
+{self._complexity_instruction()}
 
 输出要求：
 1. 只输出 JSON。
@@ -96,6 +113,7 @@ class RiderLLMAgent:
 {json.dumps(candidate_orders, ensure_ascii=False)}
 
 请从候选订单中选择你要接的订单编号。
+{self._complexity_instruction()}
 
 输出要求：
 1. 只输出 JSON。

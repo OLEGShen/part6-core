@@ -1,9 +1,16 @@
-import csv
-import os
+"""Platform state manager for the simulation.
+
+Model element mapping (Table 7-4): Rule model.
+The platform manages order pools, updates rider rankings, and aggregates
+system-level metrics through `simulation.sys_cal.SysCal`.
+"""
+
 from simulation.sys_cal import SysCal
 
 
 class Platform:
+    """Maintain platform state, orders, and system metrics."""
+
     def __init__(self, order_bf, riders, start_time):
         self.riders = riders
         self.order_BF = order_bf
@@ -20,10 +27,12 @@ class Platform:
         self.start_time = start_time
 
     def update_target(self):
+        """Update fairness, diversity, entropy, welfare, and involution."""
+
         self.target.update_fairness(list(self.riders.values()))
         self.target.update_variety(list(self.riders.values()))
         self.target.update_entropy_increase(list(self.riders.values()))
-        self.target.update_utility()
+        self.target.update_utility(list(self.riders.values()))
 
     def generate_order_now_step(self, runner_step):
         if runner_step >= len(self.all_normal_orders_info):

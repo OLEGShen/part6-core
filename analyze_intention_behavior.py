@@ -31,6 +31,15 @@ if not os.path.exists(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
 # --- Helper Functions ---
+def compute_correlation_matrix(df, intention_columns, behavior_columns):
+    """Compute the intention-behavior correlation matrix used in Figure 7-12(d-f)."""
+
+    valid_columns = [column for column in intention_columns + behavior_columns if column in df.columns]
+    if not valid_columns:
+        return pd.DataFrame()
+    return df[valid_columns].corr().loc[intention_columns, behavior_columns]
+
+
 def calculate_distance(x1, y1, x2, y2):
     """Calculates Euclidean distance between two points."""
     try:

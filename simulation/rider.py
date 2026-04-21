@@ -1,16 +1,25 @@
 import json
 import os
+import random
 from simulation.individual_cal import IndividualCal
 from simulation.llm_agent import LLMDecisionError, RiderLLMAgent
 
 
 class Rider:
+    """Rider agent with heuristic or LLM-backed decisions.
+
+    Model element mapping (Table 7-4): Agent model.
+    The rider consumes platform order pools and emits time-varying behavior,
+    thought logs, and individual metrics for the platform aggregator.
+    """
+
     TYPE = 0
 
     def __init__(self, rider_id, location, max_orders=5, one_day=120,
                  go_work_time=8, get_off_work_time=18, step_move_distance=30,
                  rider_num=100, role_profile=None, output_dir=None,
-                 decision_mode="auto", llm_model=None, llm_base_url=None):
+                 decision_mode="auto", llm_model=None, llm_base_url=None,
+                 Tw=None, Tin=None, Ts=None, eta=None, prompt_complexity="medium"):
         self.id = rider_id
         self.pt = location
         self.location = (location[0], location[1]) if hasattr(location, '__getitem__') else (location.x, location.y)
@@ -32,7 +41,7 @@ class Rider:
         self.no_choose_order_step = 0
         self.money = 0
 
-        self.target = IndividualCal()
+        self.target = IndividualCal(Tw=Tw, Tin=Tin, Ts=Ts, eta=eta)
 
         self.rank_day = {'order_rank': 0, 'dis_rank': 0, 'money_rank': 0}
         self.order_day = 0
@@ -49,9 +58,12 @@ class Rider:
         self.decision_mode = decision_mode
         self.decision_backend = "heuristic"
         self.llm_agent = None
+        self.prompt_complexity = prompt_complexity
         self._init_llm_agent(llm_model=llm_model, llm_base_url=llm_base_url)
 
     def step(self, meituan, runner_step):
+        """Advance the rider by one simulation step."""
+
         self.decide_work_time(runner_step)
         self.orders_status_update(runner_step, meituan)
         self.route_to_walk(meituan, runner_step)
@@ -65,6 +77,8 @@ class Rider:
         self.choose_order(meituan, runner_step)
 
     def target_update(self):
+        """Refresh individual metrics after movement and order completion."""
+
         self.target.profit_present_time = max(self.target.income_present_time - self.target.cost_present_time, 0)
         self.target.cost_list_present_time.append(self.target.cost_present_time)
         self.target.income_list_present_time.append(self.target.income_present_time)
@@ -83,7 +97,11 @@ class Rider:
             return
 
         try:
-            self.llm_agent = RiderLLMAgent(model=llm_model, base_url=llm_base_url)
+            self.llm_agent = RiderLLMAgent(
+                model=llm_model,
+                base_url=llm_base_url,
+                prompt_complexity=self.prompt_complexity,
+            )
             self.decision_backend = "llm"
         except LLMDecisionError:
             if self.decision_mode == "llm":
@@ -112,11 +130,16 @@ class Rider:
     def _decide_work_time_heuristically(self, runner_step, info):
         go_work_time = info["before_go_work_time"]
         get_off_work_time = info["before_get_off_work_time"]
-        if info["money_rank"] > max(1, self.rider_num // 2):
+        if self.prompt_complexity == "low":
+            go_work_time = min(10, max(6, go_work_time + random.choice([-1, 0, 1])))
+            get_off_work_time = max(go_work_time + 6, min(23, get_off_work_time + random.choice([-1, 0, 1])))
+        elif info["money_rank"] > max(1, self.rider_num // 2):
             go_work_time = max(6, go_work_time - 1)
             get_off_work_time = min(23, get_off_work_time + 1)
         elif 0 < info["money_rank"] <= max(1, self.rider_num // 5):
             get_off_work_time = max(go_work_time + 6, get_off_work_time - 1)
+        elif self.prompt_complexity == "high":
+            get_off_work_time = max(go_work_time + 8, min(23, get_off_work_time))
 
         self.go_work_time = go_work_time
         self.get_off_work_time = get_off_work_time
@@ -209,6 +232,10 @@ class Rider:
             key=lambda order: self._score_order(order, info["now_location"]),
             reverse=True,
         )
+        if self.prompt_complexity == "low":
+            random.shuffle(ranked)
+        elif self.prompt_complexity == "medium" and len(ranked) > 1:
+            ranked = ranked[: max(info["accept_count"] + 1, min(3, len(ranked)))] + ranked[max(info["accept_count"] + 1, min(3, len(ranked))):]
         selected = [order["order_id"] for order in ranked[:info["accept_count"]]]
         self._log_thought(
             runner_step,

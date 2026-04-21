@@ -1,29 +1,53 @@
-import numpy as np
+"""Order generation functions for the environment model.
+
+Model element mapping (Table 7-4): Environment model.
+`simulation.city.City` calls this module to generate temporally varying order
+arrival intensity and spatially sampled orders.
+"""
+
 import random
+
+import numpy as np
+
+from config import ORDER_DISTRIBUTION_CONFIG
 
 
 def all_orders_list(step_len, repeat_len, mer_list, rest_list, n, rand=True):
+    """Generate all orders across the full simulation horizon."""
+
     if not rand:
         random.seed(0)
-    all_list = []
-    for i in range(1, step_len):
-        i = i % repeat_len
-        order_num = int(n * int(fitting_dist(i)))
+    all_list = [[]]
+    for step in range(1, step_len):
+        local_step = step % repeat_len
+        order_num = max(0, int(n * gaussian_mixture_distribution(local_step)))
         orders = orders_list(order_num, mer_list, rest_list)
         for order in orders:
-            order.append(i)
+            order.append(local_step)
         all_list.append(orders)
     return all_list
 
 
+def gaussian_mixture_distribution(x, amplitudes=None, centers=None, widths=None):
+    r"""Compute the temporal order intensity from a Gaussian mixture.
+
+    对应论文公式 (Order Distribution)
+    LaTeX: f(x)=\sum_{i=1}^{5} a_i \exp\left(-\frac{(x-b_i)^2}{c_i^2}\right)
+    """
+
+    amplitudes = amplitudes or ORDER_DISTRIBUTION_CONFIG.amplitudes
+    centers = centers or ORDER_DISTRIBUTION_CONFIG.centers
+    widths = widths or ORDER_DISTRIBUTION_CONFIG.widths
+    fitting_model = 0.0
+    for amplitude, center, width in zip(amplitudes, centers, widths):
+        fitting_model += amplitude * np.exp(-((x - center) ** 2) / (width ** 2))
+    return float(fitting_model)
+
+
 def fitting_dist(x):
-    a = [314.2, 188.3, 95.56, 22.9, 48.67]
-    b = [172.5, 281.5, 315.5, 228.9, 267.1]
-    c = [4.645, 1.559, 10.69, 167.7, 13.1]
-    fitting_model = 0
-    for i in range(5):
-        fitting_model += a[i] * np.exp(-((x - b[i]) / c[i]) ** 2)
-    return fitting_model
+    """Backward-compatible alias for the Gaussian mixture order generator."""
+
+    return gaussian_mixture_distribution(x)
 
 
 def get_order_type():
