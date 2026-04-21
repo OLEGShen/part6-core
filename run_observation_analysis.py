@@ -134,7 +134,8 @@ def generate_heatmap(run_results, output_dir=OUTPUT_DIR):
     for axis, cutoff in zip(axes, cutoffs):
         points = []
         for _, results in run_results:
-            history = results["time_series"]["rider_positions"][cutoff]
+            time_series = pd.DataFrame(results["time_series"])
+            history = time_series["rider_positions"].iloc[cutoff]
             points.extend([(item["x"], item["y"]) for item in history])
         df = pd.DataFrame(points, columns=["x", "y"])
         heatmap, xedges, yedges = np.histogram2d(df["x"], df["y"], bins=10, range=[[0, 100], [0, 100]])

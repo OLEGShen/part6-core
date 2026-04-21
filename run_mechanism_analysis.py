@@ -17,7 +17,12 @@ import seaborn as sns
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 
-from config import ANALYSIS_RESULTS_DIR
+from config import ANALYSIS_RESULTS_DIR, LLM_CONFIG
+
+try:
+    from openai import OpenAI
+except Exception:  # pragma: no cover - optional at runtime
+    OpenAI = None
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -27,6 +32,8 @@ except Exception:  # pragma: no cover - optional at runtime
 
 OUTPUT_DIR = ANALYSIS_RESULTS_DIR
 PHASE_LABELS = ["Rule Following", "Anxiety Driven", "Risk Avoidance"]
+_FALLBACK_LOGGED = False
+_MECHANISM_LLM_CLIENT = None
 
 
 def discover_thought_files():
@@ -37,6 +44,87 @@ def discover_thought_files():
     return sorted(paths)
 
 
+def _get_llm_client():
+    global _MECHANISM_LLM_CLIENT
+    if _MECHANISM_LLM_CLIENT is not None:
+        return _MECHANISM_LLM_CLIENT
+    api_key = os.getenv(LLM_CONFIG.api_key_env)
+    if not api_key or OpenAI is None:
+        return None
+    base_url = os.getenv(LLM_CONFIG.base_url_env, LLM_CONFIG.default_base_url)
+    _MECHANISM_LLM_CLIENT = OpenAI(api_key=api_key, base_url=base_url)
+    return _MECHANISM_LLM_CLIENT
+
+
+def _log_fallback_once():
+    global _FALLBACK_LOGGED
+    if not _FALLBACK_LOGGED:
+        print("Mechanism analysis fallback: DASHSCOPE_API_KEY not found or LLM unavailable, using keyword matching.")
+        _FALLBACK_LOGGED = True
+
+
+def _extract_dual_thoughts_with_llm(thought_text):
+    client = _get_llm_client()
+    if client is None:
+        return None
+    prompt = f"""
+Read the rider thought below and extract:
+1. Cs: bounded-rational intention
+2. Cr: fully-rational intention
+
+Return JSON only:
+{{
+  "Cs": "short phrase",
+  "Cr": "short phrase"
+}}
+
+Thought:
+{thought_text}
+"""
+    completion = client.chat.completions.create(
+        model=os.getenv(LLM_CONFIG.model_env, LLM_CONFIG.model),
+        messages=[
+            {"role": "system", "content": "You extract dual intentions from rider thoughts and must return valid JSON."},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=LLM_CONFIG.temperature,
+    )
+    content = (completion.choices[0].message.content or "").strip()
+    if content.startswith("```json"):
+        content = content.removeprefix("```json").removesuffix("```").strip()
+    return json.loads(content)
+
+
+def _detect_emergent_intention_with_llm(cs, cr, thought_library):
+    client = _get_llm_client()
+    if client is None:
+        return None
+    known_patterns = sorted(thought_library)[-20:]
+    prompt = f"""
+Decide whether the current rider intention is emergent relative to the known group thought library.
+Return JSON only:
+{{
+  "emergent": true or false
+}}
+
+Current Cs: {cs}
+Current Cr: {cr}
+Known library: {known_patterns}
+"""
+    completion = client.chat.completions.create(
+        model=os.getenv(LLM_CONFIG.model_env, LLM_CONFIG.model),
+        messages=[
+            {"role": "system", "content": "You judge whether a rider intention is emergent and must return valid JSON."},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=LLM_CONFIG.temperature,
+    )
+    content = (completion.choices[0].message.content or "").strip()
+    if content.startswith("```json"):
+        content = content.removeprefix("```json").removesuffix("```").strip()
+    return json.loads(content)
+
+
 def extract_dual_thoughts(thought_text):
     r"""Extract bounded-rational and fully-rational intentions.
 
@@ -45,6 +133,18 @@ def extract_dual_thoughts(thought_text):
     """
 
     text = str(thought_text or "").strip()
+    if os.getenv(LLM_CONFIG.api_key_env):
+        try:
+            llm_result = _extract_dual_thoughts_with_llm(text)
+            if isinstance(llm_result, dict):
+                return {
+                    "Cs": str(llm_result.get("Cs", "routine")),
+                    "Cr": str(llm_result.get("Cr", "income")),
+                }
+        except Exception:
+            _log_fallback_once()
+    else:
+        _log_fallback_once()
     lowered = text.lower()
     bounded_markers = ["anx", "worry", "tired", "risk", "fatigue", "competition", "stress", "焦虑", "风险"]
     rational_markers = ["income", "profit", "efficiency", "distance", "schedule", "收益", "效率", "距离"]
@@ -61,6 +161,19 @@ def detect_emergent_intention(cs, cr, thought_library=None):
     """
 
     thought_library = thought_library if thought_library is not None else set()
+    if os.getenv(LLM_CONFIG.api_key_env):
+        try:
+            llm_result = _detect_emergent_intention_with_llm(cs, cr, thought_library)
+            if isinstance(llm_result, dict):
+                signature = f"{cs}|{cr}"
+                is_emergent = bool(llm_result.get("emergent", False))
+                if is_emergent:
+                    thought_library.add(signature)
+                return is_emergent, thought_library
+        except Exception:
+            _log_fallback_once()
+    else:
+        _log_fallback_once()
     signature = f"{cs}|{cr}"
     is_emergent = signature not in thought_library and cs != cr
     if is_emergent:

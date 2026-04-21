@@ -127,7 +127,11 @@ def plot_intervention_boxplot(df, output_dir=OUTPUT_DIR):
 
 
 def compute_sem_coefficients():
-    """Return the standardized path coefficients reported in the paper."""
+    """Return the standardized path coefficients reported in the paper.
+
+    This function returns the paper-reported coefficients directly and does not
+    perform dynamic estimation from the current experimental data.
+    """
 
     return {
         "intelligence_level": 0.18,

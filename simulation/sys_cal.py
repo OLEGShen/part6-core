@@ -129,9 +129,30 @@ class SysCal:
         return max(0.0, min(1.0, equality))
 
     def compute_productivity(self, agents) -> float:
-        """Compute productivity as the mean rider utility at time `t`."""
+        r"""Compute productivity as the total rider income.
 
-        utilities = [agent.target.utility for agent in agents]
+        对应论文公式 (Swf-prod)
+        LaTeX: prod(t)=\sum_i a_i
+        """
+
+        total_income = 0.0
+        for agent in agents:
+            income_window = [max(value, 0.0) for value in agent.target.income_list_present_time[-self.Tf:]]
+            if income_window:
+                total_income += sum(income_window) / len(income_window)
+        return total_income
+
+    def compute_average_utility(self, agents) -> float:
+        """Compute the mean rider utility over the same time window `T`."""
+
+        utilities = []
+        for agent in agents:
+            incomes = agent.target.income_list_present_time[-self.Tf:]
+            costs = agent.target.cost_list_present_time[-self.Tf:]
+            if not incomes and not costs:
+                continue
+            net_reward = max(sum(incomes) - sum(costs), 1e-9)
+            utilities.append(agent.target.crra(net_reward))
         return sum(utilities) / len(utilities) if utilities else 0.0
 
     def compute_swf(self, agents) -> float:
@@ -157,8 +178,8 @@ class SysCal:
         LaTeX: \mathrm{Involution}(t)=\frac{\mathrm{Swf}(T)}{\mathrm{avg}(\mathrm{Utility}(T,i))}
         """
 
-        avg_utility = self.compute_productivity(agents)
-        if avg_utility == 0:
+        avg_utility = self.compute_average_utility(agents)
+        if avg_utility <= 0:
             return 0.0
         return self.swf / avg_utility
 
