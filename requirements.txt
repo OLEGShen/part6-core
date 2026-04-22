@@ -1,9 +1,16 @@
-pandas
-numpy
-matplotlib
-seaborn
-openai
-plotly
-sentence-transformers
-scikit-learn
-scipy
+# Core numerical/data stack
+numpy==1.26.4
+pandas==2.2.3
+scipy==1.14.1
+
+# Visualization
+matplotlib==3.9.2
+seaborn==0.13.2
+plotly==5.24.1
+
+# ML / clustering / embeddings
+scikit-learn==1.5.2
+sentence-transformers==3.2.1
+
+# LLM client (OpenAI-compatible API)
+openai==1.51.2

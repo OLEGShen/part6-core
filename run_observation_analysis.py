@@ -30,7 +30,11 @@ def classify_involution_level(value):
     return "High"
 
 
-def run_observation_experiments(num_runs=SIMULATION_CONFIG.num_runs):
+def run_observation_experiments(
+    num_runs=SIMULATION_CONFIG.num_runs,
+    rider_num=SIMULATION_CONFIG.rider_num,
+    run_len=SIMULATION_CONFIG.run_len,
+):
     """Run repeated experiments with identical parameters and different seeds."""
 
     records = []
@@ -39,8 +43,8 @@ def run_observation_experiments(num_runs=SIMULATION_CONFIG.num_runs):
         seed = SIMULATION_CONFIG.seed_base + run_id
         results, _ = run_single_simulation(
             run_id=run_id,
-            rider_num=SIMULATION_CONFIG.rider_num,
-            run_len=SIMULATION_CONFIG.run_len,
+            rider_num=rider_num,
+            run_len=run_len,
             one_day=SIMULATION_CONFIG.one_day,
             order_weight=SIMULATION_CONFIG.order_weight,
             seed=seed,
@@ -95,7 +99,7 @@ def plot_involution_timeline(run_results, output_dir=OUTPUT_DIR):
     for run_id, results in run_results:
         time_series = pd.DataFrame(results["time_series"])
         max_len = max(max_len, len(time_series))
-        stacked.append(time_series["involution"].to_numpy())
+        stacked.append(np.asarray(time_series["involution"].values))
         ax.plot(time_series["step"], time_series["involution"], alpha=0.35, linewidth=1.2, label=f"Run {run_id}")
 
     matrix = np.full((len(stacked), max_len), np.nan)
@@ -178,10 +182,16 @@ def cluster_evolution_results(summary_df, output_dir=OUTPUT_DIR):
 def main():
     parser = argparse.ArgumentParser(description="Run observation analysis (Algorithm 7-1).")
     parser.add_argument("--num_runs", type=int, default=SIMULATION_CONFIG.num_runs)
+    parser.add_argument("--rider_num", type=int, default=SIMULATION_CONFIG.rider_num)
+    parser.add_argument("--run_len", type=int, default=SIMULATION_CONFIG.run_len)
     args = parser.parse_args()
 
     OUTPUT_DIR.mkdir(exist_ok=True)
-    summary_df, run_results = run_observation_experiments(num_runs=args.num_runs)
+    summary_df, run_results = run_observation_experiments(
+        num_runs=args.num_runs,
+        rider_num=args.rider_num,
+        run_len=args.run_len,
+    )
     plot_involution_distribution(summary_df)
     plot_involution_timeline(run_results)
     generate_heatmap(run_results)

@@ -293,9 +293,9 @@ def main():
     parser.add_argument('--no_detail', action='store_true', help='Skip saving detailed results')
     parser.add_argument(
         '--decision_mode',
-        choices=['auto', 'llm', 'heuristic'],
+        choices=['auto', 'llm', 'heuristic', 'imitation'],
         default='auto',
-        help='Rider decision backend: auto / llm / heuristic',
+        help='Rider decision backend: auto / llm / heuristic / imitation',
     )
     parser.add_argument('--llm_model', type=str, default=LLM_CONFIG.model, help='LLM model name')
     parser.add_argument('--llm_base_url', type=str, default=None, help='LLM API base URL')

@@ -130,7 +130,17 @@ class Rider:
     def _decide_work_time_heuristically(self, runner_step, info):
         go_work_time = info["before_go_work_time"]
         get_off_work_time = info["before_get_off_work_time"]
-        if self.prompt_complexity == "low":
+        if self.decision_mode == "imitation":
+            # Imitation mode: follow a herd-like shift pattern around platform peaks.
+            target_start = 10
+            target_end = 21
+            go_work_time = int(round((go_work_time + target_start) / 2))
+            get_off_work_time = int(round((get_off_work_time + target_end) / 2))
+            if info["money_rank"] > max(1, self.rider_num // 2):
+                go_work_time = max(6, go_work_time - 1)
+                get_off_work_time = min(23, get_off_work_time + 1)
+            self.decision_backend = "imitation"
+        elif self.prompt_complexity == "low":
             go_work_time = min(10, max(6, go_work_time + random.choice([-1, 0, 1])))
             get_off_work_time = max(go_work_time + 6, min(23, get_off_work_time + random.choice([-1, 0, 1])))
         elif info["money_rank"] > max(1, self.rider_num // 2):
@@ -227,11 +237,16 @@ class Rider:
 
     def _take_order_heuristically(self, runner_step, info):
         candidate_orders = [item[1] for item in info['order_list']]
-        ranked = sorted(
-            candidate_orders,
-            key=lambda order: self._score_order(order, info["now_location"]),
-            reverse=True,
-        )
+        if self.decision_mode == "imitation":
+            # Imitation mode: chase currently highest-paying visible orders.
+            ranked = sorted(candidate_orders, key=lambda order: float(order["money"]), reverse=True)
+            self.decision_backend = "imitation"
+        else:
+            ranked = sorted(
+                candidate_orders,
+                key=lambda order: self._score_order(order, info["now_location"]),
+                reverse=True,
+            )
         if self.prompt_complexity == "low":
             random.shuffle(ranked)
         elif self.prompt_complexity == "medium" and len(ranked) > 1:

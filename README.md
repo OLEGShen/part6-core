@@ -38,7 +38,7 @@ The current version is organized for reproducibility, repeated simulation, and d
 - `run_intervention_analysis.py`: intervention analysis corresponding to Algorithm 7-2
 - `run_mechanism_analysis.py`: mechanism analysis corresponding to Algorithm 7-3
 - `analyze_simulation.py`: analyzes repeated simulation outputs
-- `analyze_multi_source.py`: compares simulation results with `exp1` to `exp5`
+- `analyze_multi_source.py`: compares simulation results with externally supplied experimental datasets
 
 ## Directory Overview
 
@@ -53,6 +53,7 @@ part6-core/
 ├── run_observation_analysis.py # Algorithm 7-1
 ├── run_intervention_analysis.py# Algorithm 7-2
 ├── run_mechanism_analysis.py   # Algorithm 7-3
+├── reproduce_paper.sh          # One-click reproduction script
 └── README.md
 ```
 
@@ -196,6 +197,8 @@ This generates:
 bash reproduce_paper.sh
 ```
 
+This script runs the observation, intervention, and mechanism layers sequentially and then generates the combined figure. All outputs are saved to `analysis_results/`.
+
 ## Paper Mapping
 
 ### Figure/Table Mapping
@@ -206,12 +209,12 @@ bash reproduce_paper.sh
 | Table 7-4 | Real-computational system mapping | documentation only | — |
 | Figure 7-9(a) | Involution-level experimental distribution | `run_observation_analysis.py` | `plot_involution_distribution()` |
 | Figure 7-9(b) | Involution timeline | `run_observation_analysis.py` | `plot_involution_timeline()` |
-| Figure 7-10 | Rider activity heatmap | `generate_experiment_heatmaps.py` | `generate_heatmap()` |
+| Figure 7-10 | Rider activity heatmap | `run_observation_analysis.py` | `generate_heatmap()` |
 | Figure 7-11(a) | Intervention boxplot | `run_intervention_analysis.py` | `plot_intervention_boxplot()` |
 | Figure 7-11(d) | SEM path coefficients | `run_intervention_analysis.py` | `compute_sem_coefficients()` |
 | Figure 7-12(a-c) | Intention clustering evolution | `run_mechanism_analysis.py` | `cluster_intentions()` |
 | Figure 7-12(d-f) | Intention-behavior correlation | `analyze_intention_behavior.py` | `compute_correlation_matrix()` |
-| Figure 7-12(g) | Intention evolution Sankey diagram | `generate_evolution_sankey.py` | `build_sankey()` |
+| Figure 7-12(g) | Intention evolution Sankey diagram | `run_mechanism_analysis.py` | `build_sankey()` |
 
 ### Formula Mapping
 
@@ -233,4 +236,4 @@ bash reproduce_paper.sh
 - This repository is a cleaned and compressed version of the original `SocialInvolution` project for paper reproduction and public release.
 - The code now supports both a rule-based rider (`heuristic`) and an LLM-based rider (`llm`).
 - In `llm` mode, the rider outputs traceable thought records in `*_thought.json`.
-- The analysis scripts are designed to work even if `exp1` to `exp5` are not included in the public repository, as long as equivalent input data are provided later.
+- The public README no longer assumes bundled `exp1` to `exp5` directories; experimental comparison scripts can be run later with equivalent external datasets.

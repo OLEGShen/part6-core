@@ -17,12 +17,19 @@ from simulation.city import City
 OUTPUT_DIR = ANALYSIS_RESULTS_DIR
 
 
-def simulate_condition(seed, prompt_complexity="medium", interaction_interval=15, order_weight=None):
+def simulate_condition(
+    seed,
+    prompt_complexity="medium",
+    interaction_interval=15,
+    order_weight=None,
+    rider_num=SIMULATION_CONFIG.rider_num,
+    run_len=SIMULATION_CONFIG.run_len,
+):
     """Run one treatment/control simulation under a fixed random seed."""
 
     city = City(
-        rider_num=SIMULATION_CONFIG.rider_num,
-        run_len=SIMULATION_CONFIG.run_len,
+        rider_num=rider_num,
+        run_len=run_len,
         one_day=SIMULATION_CONFIG.one_day,
         order_weight=order_weight if order_weight is not None else SIMULATION_CONFIG.order_weight,
         seed=seed,
@@ -72,7 +79,7 @@ def backdoor_adjustment(df, treatment_col, outcome_col, confounder_cols):
     return weighted_sum
 
 
-def run_factor_experiment(factor_name, treatment_specs, control_spec, seeds):
+def run_factor_experiment(factor_name, treatment_specs, control_spec, seeds, rider_num, run_len):
     """Run treatment/control experiments for one intervention factor."""
 
     rows = []
@@ -80,8 +87,8 @@ def run_factor_experiment(factor_name, treatment_specs, control_spec, seeds):
         treatment_scores = []
         control_scores = []
         for seed in seeds:
-            treatment = simulate_condition(seed=seed, **spec)
-            control = simulate_condition(seed=seed, **control_spec)
+            treatment = simulate_condition(seed=seed, rider_num=rider_num, run_len=run_len, **spec)
+            control = simulate_condition(seed=seed, rider_num=rider_num, run_len=run_len, **control_spec)
             treatment_scores.append(treatment["final_involution"])
             control_scores.append(control["final_involution"])
             rows.append(
@@ -183,6 +190,8 @@ def plot_sem_coefficients(coefficients, output_dir=OUTPUT_DIR):
 def main():
     parser = argparse.ArgumentParser(description="Run intervention analysis (Algorithm 7-2).")
     parser.add_argument("--num_runs", type=int, default=SIMULATION_CONFIG.num_runs)
+    parser.add_argument("--rider_num", type=int, default=SIMULATION_CONFIG.rider_num)
+    parser.add_argument("--run_len", type=int, default=SIMULATION_CONFIG.run_len)
     args = parser.parse_args()
 
     OUTPUT_DIR.mkdir(exist_ok=True)
@@ -209,7 +218,14 @@ def main():
     records = []
     effect_rows = []
     for factor_name, treatment_specs in factor_definitions.items():
-        for result in run_factor_experiment(factor_name, treatment_specs, control_spec, seeds):
+        for result in run_factor_experiment(
+            factor_name,
+            treatment_specs,
+            control_spec,
+            seeds,
+            rider_num=args.rider_num,
+            run_len=args.run_len,
+        ):
             records.extend(result["rows"])
             effect_rows.append({"factor": factor_name, "level": result["level"], "ate": result["ate"]})
 

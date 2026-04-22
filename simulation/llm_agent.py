@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import urllib.request
 from typing import Any, Dict, List
 
 from config import LLM_CONFIG
@@ -31,12 +32,10 @@ class RiderLLMAgent:
         self.temperature = LLM_CONFIG.temperature if temperature is None else temperature
         self.prompt_complexity = prompt_complexity
 
-        if OpenAI is None:
-            raise LLMDecisionError("未安装 openai 包，无法启用 LLM 骑手决策。")
         if not self.api_key:
             raise LLMDecisionError("未设置 DASHSCOPE_API_KEY，无法启用 LLM 骑手决策。")
 
-        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url) if OpenAI is not None else None
 
     def _complexity_instruction(self) -> str:
         if self.prompt_complexity == "high":
@@ -47,15 +46,39 @@ class RiderLLMAgent:
 
     def _call_json(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
         try:
-            completion = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=self.temperature,
-            )
-            content = (completion.choices[0].message.content or "").strip()
+            if self.client is not None:
+                completion = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=self.temperature,
+                )
+                content = (completion.choices[0].message.content or "").strip()
+            else:
+                payload = json.dumps(
+                    {
+                        "model": self.model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "temperature": self.temperature,
+                    }
+                ).encode("utf-8")
+                endpoint = self.base_url.rstrip("/") + "/chat/completions"
+                request = urllib.request.Request(
+                    endpoint,
+                    data=payload,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {self.api_key}",
+                    },
+                )
+                with urllib.request.urlopen(request, timeout=120) as response:
+                    result = json.loads(response.read().decode("utf-8"))
+                content = (result.get("choices", [{}])[0].get("message", {}).get("content", "") or "").strip()
         except Exception as exc:
             raise LLMDecisionError(f"LLM API 调用失败: {exc}") from exc
 

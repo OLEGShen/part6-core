@@ -3,8 +3,11 @@
 import argparse
 import json
 import os
+import urllib.request
+import re
 from collections import Counter, defaultdict
 from pathlib import Path
+import hashlib
 
 import matplotlib
 
@@ -36,11 +39,15 @@ _FALLBACK_LOGGED = False
 _MECHANISM_LLM_CLIENT = None
 
 
-def discover_thought_files():
+def discover_thought_files(patterns=None):
     """Collect thought logs from experiments and simulations."""
 
     base_dir = Path(__file__).resolve().parent
-    paths = list(base_dir.glob("exp*/**/*_thought.json")) + list(base_dir.glob("simulation_results/sim_*/**/*_thought.json"))
+    if patterns is None:
+        patterns = ["exp*/**/*_thought.json", "simulation_results/sim_*/**/*_thought.json"]
+    paths = []
+    for pattern in patterns:
+        paths.extend(base_dir.glob(pattern))
     return sorted(paths)
 
 
@@ -63,9 +70,22 @@ def _log_fallback_once():
         _FALLBACK_LOGGED = True
 
 
+def _parse_json_like(content):
+    content = (content or "").strip()
+    if content.startswith("```json"):
+        content = content.removeprefix("```json").removesuffix("```").strip()
+    try:
+        return json.loads(content)
+    except Exception:
+        match = re.search(r"\{[\s\S]*\}", content)
+        if match:
+            return json.loads(match.group(0))
+        raise
+
+
 def _extract_dual_thoughts_with_llm(thought_text):
     client = _get_llm_client()
-    if client is None:
+    if client is None and not os.getenv(LLM_CONFIG.api_key_env):
         return None
     prompt = f"""
 Read the rider thought below and extract:
@@ -81,23 +101,45 @@ Return JSON only:
 Thought:
 {thought_text}
 """
-    completion = client.chat.completions.create(
-        model=os.getenv(LLM_CONFIG.model_env, LLM_CONFIG.model),
-        messages=[
-            {"role": "system", "content": "You extract dual intentions from rider thoughts and must return valid JSON."},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=LLM_CONFIG.temperature,
-    )
-    content = (completion.choices[0].message.content or "").strip()
-    if content.startswith("```json"):
-        content = content.removeprefix("```json").removesuffix("```").strip()
-    return json.loads(content)
+    if client is not None:
+        completion = client.chat.completions.create(
+            model=os.getenv(LLM_CONFIG.model_env, LLM_CONFIG.model),
+            messages=[
+                {"role": "system", "content": "You extract dual intentions from rider thoughts and must return valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=LLM_CONFIG.temperature,
+        )
+        content = (completion.choices[0].message.content or "").strip()
+    else:
+        endpoint = os.getenv(LLM_CONFIG.base_url_env, LLM_CONFIG.default_base_url).rstrip("/") + "/chat/completions"
+        payload = json.dumps(
+            {
+                "model": os.getenv(LLM_CONFIG.model_env, LLM_CONFIG.model),
+                "messages": [
+                    {"role": "system", "content": "You extract dual intentions from rider thoughts and must return valid JSON."},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": LLM_CONFIG.temperature,
+            }
+        ).encode("utf-8")
+        request = urllib.request.Request(
+            endpoint,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {os.getenv(LLM_CONFIG.api_key_env, '')}",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=120) as response:
+            result = json.loads(response.read().decode("utf-8"))
+        content = (result.get("choices", [{}])[0].get("message", {}).get("content", "") or "").strip()
+    return _parse_json_like(content)
 
 
 def _detect_emergent_intention_with_llm(cs, cr, thought_library):
     client = _get_llm_client()
-    if client is None:
+    if client is None and not os.getenv(LLM_CONFIG.api_key_env):
         return None
     known_patterns = sorted(thought_library)[-20:]
     prompt = f"""
@@ -111,18 +153,40 @@ Current Cs: {cs}
 Current Cr: {cr}
 Known library: {known_patterns}
 """
-    completion = client.chat.completions.create(
-        model=os.getenv(LLM_CONFIG.model_env, LLM_CONFIG.model),
-        messages=[
-            {"role": "system", "content": "You judge whether a rider intention is emergent and must return valid JSON."},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=LLM_CONFIG.temperature,
-    )
-    content = (completion.choices[0].message.content or "").strip()
-    if content.startswith("```json"):
-        content = content.removeprefix("```json").removesuffix("```").strip()
-    return json.loads(content)
+    if client is not None:
+        completion = client.chat.completions.create(
+            model=os.getenv(LLM_CONFIG.model_env, LLM_CONFIG.model),
+            messages=[
+                {"role": "system", "content": "You judge whether a rider intention is emergent and must return valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=LLM_CONFIG.temperature,
+        )
+        content = (completion.choices[0].message.content or "").strip()
+    else:
+        endpoint = os.getenv(LLM_CONFIG.base_url_env, LLM_CONFIG.default_base_url).rstrip("/") + "/chat/completions"
+        payload = json.dumps(
+            {
+                "model": os.getenv(LLM_CONFIG.model_env, LLM_CONFIG.model),
+                "messages": [
+                    {"role": "system", "content": "You judge whether a rider intention is emergent and must return valid JSON."},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": LLM_CONFIG.temperature,
+            }
+        ).encode("utf-8")
+        request = urllib.request.Request(
+            endpoint,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {os.getenv(LLM_CONFIG.api_key_env, '')}",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=120) as response:
+            result = json.loads(response.read().decode("utf-8"))
+        content = (result.get("choices", [{}])[0].get("message", {}).get("content", "") or "").strip()
+    return _parse_json_like(content)
 
 
 def extract_dual_thoughts(thought_text):
@@ -203,20 +267,31 @@ def cluster_intentions(texts, n_clusters=3):
     """
 
     if SentenceTransformer is None:
-        raise RuntimeError("缺少 sentence-transformers 依赖，无法执行机制聚类分析。")
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    embeddings = model.encode(texts, show_progress_bar=False)
+        print("Mechanism analysis fallback: sentence-transformers unavailable, using hashed text embeddings.")
+        embeddings = []
+        for text in texts:
+            vector = np.zeros(32, dtype=float)
+            for token in str(text).lower().split():
+                digest = hashlib.md5(token.encode("utf-8")).hexdigest()
+                index = int(digest[:8], 16) % len(vector)
+                vector[index] += 1.0
+            norm = np.linalg.norm(vector)
+            embeddings.append(vector / norm if norm > 0 else vector)
+        embeddings = np.asarray(embeddings)
+    else:
+        model = SentenceTransformer("all-MiniLM-L6-v2")
+        embeddings = model.encode(texts, show_progress_bar=False)
     kmeans = KMeans(n_clusters=min(n_clusters, len(texts)), random_state=42, n_init=10)
     labels = kmeans.fit_predict(embeddings)
     return np.asarray(embeddings), labels
 
 
-def load_thought_records():
+def load_thought_records(patterns=None):
     """Load thought records into a unified dataframe."""
 
     rows = []
     library = set()
-    for path in discover_thought_files():
+    for path in discover_thought_files(patterns=patterns):
         source = path.parent.name
         rider_id = path.name.split("_")[0]
         with open(path, "r", encoding="utf-8") as file:
@@ -285,7 +360,21 @@ def plot_cluster_scatter(df, embeddings, labels):
         ax.set_title(f"Figure 7-12 Cluster Scatter: {phase}")
         ax.set_xlabel("PC1")
         ax.set_ylabel("PC2")
-        ax.legend(*scatter.legend_elements(), title="Cluster")
+        unique_clusters = sorted(phase_df["cluster"].unique().tolist())
+        handles = []
+        for cluster_id in unique_clusters:
+            handles.append(
+                plt.Line2D(
+                    [0],
+                    [0],
+                    marker="o",
+                    color="w",
+                    markerfacecolor=plt.cm.tab10(cluster_id % 10),
+                    label=f"Cluster {cluster_id}",
+                    markersize=8,
+                )
+            )
+        ax.legend(handles=handles, title="Cluster")
         output_path = OUTPUT_DIR / f"fig7-12_cluster_scatter_{phase.lower().replace(' ', '_')}.png"
         fig.savefig(output_path, dpi=300, bbox_inches="tight")
         plt.close(fig)
@@ -380,10 +469,16 @@ def plot_intervention_comparison(df):
 
 def main():
     parser = argparse.ArgumentParser(description="Run mechanism analysis (Algorithm 7-3).")
-    parser.parse_args()
+    parser.add_argument(
+        "--thought_patterns",
+        nargs="*",
+        default=["simulation_results/sim_*/**/*_thought.json"],
+        help="Glob patterns for thought files, relative to project root.",
+    )
+    args = parser.parse_args()
 
     OUTPUT_DIR.mkdir(exist_ok=True)
-    df = load_thought_records()
+    df = load_thought_records(patterns=args.thought_patterns)
     if df.empty:
         raise SystemExit("未找到可用于机制分析的 *_thought.json 文件。")
     embeddings, labels = cluster_intentions(df["thought"].fillna("").tolist())
