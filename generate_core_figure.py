@@ -366,6 +366,12 @@ def generate_core_figure(csv_path):
 def parse_args():
     parser = argparse.ArgumentParser(description="生成核心组合图。")
     parser.add_argument(
+        "--decision_mode",
+        choices=["llm", "heuristic", "imitation", "auto"],
+        default="llm",
+        help="Pipeline compatibility argument; unused in this plotting script.",
+    )
+    parser.add_argument(
         "--trajectory-file",
         default=DEFAULT_TRAJECTORY_FILE,
         help="用于顶部累计热力图的轨迹 CSV 文件路径。",

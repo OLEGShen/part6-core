@@ -20,7 +20,7 @@ def run_single_simulation(
     order_weight,
     seed,
     save_detail=True,
-    decision_mode="auto",
+    decision_mode="llm",
     llm_model=None,
     llm_base_url=None,
     business_district_num=SIMULATION_CONFIG.business_district_num,
@@ -140,7 +140,7 @@ def _save_time_series(time_series, save_path):
 def run_multiple_simulations(num_runs=SIMULATION_CONFIG.num_runs, rider_num=SIMULATION_CONFIG.rider_num,
                               run_len=SIMULATION_CONFIG.run_len, one_day=SIMULATION_CONFIG.one_day,
                               order_weight=SIMULATION_CONFIG.order_weight, seed_base=SIMULATION_CONFIG.seed_base, save_detail=True,
-                              decision_mode="auto", llm_model=None, llm_base_url=None):
+                              decision_mode="llm", llm_model=None, llm_base_url=None):
     print(f"{'='*60}")
     print(f"Running {num_runs} simulations with {rider_num} riders")
     print(f"{'='*60}")
@@ -294,8 +294,8 @@ def main():
     parser.add_argument(
         '--decision_mode',
         choices=['auto', 'llm', 'heuristic', 'imitation'],
-        default='auto',
-        help='Rider decision backend: auto / llm / heuristic / imitation',
+        default='llm',
+        help='Rider decision backend (paper reproduction uses llm): auto / llm / heuristic / imitation',
     )
     parser.add_argument('--llm_model', type=str, default=LLM_CONFIG.model, help='LLM model name')
     parser.add_argument('--llm_base_url', type=str, default=None, help='LLM API base URL')
@@ -319,7 +319,8 @@ def main():
         raise SystemExit(
             f"无法启动 LLM 骑手模拟：{exc}\n"
             "请安装 `openai` 包并设置 `DASHSCOPE_API_KEY`，"
-            "或者使用 `--decision_mode heuristic` 运行规则版模拟。"
+            "论文复现请使用 `--decision_mode llm`；"
+            "仅开发调试可使用 `--decision_mode heuristic`。"
         )
 
 

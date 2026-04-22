@@ -470,6 +470,12 @@ def plot_intervention_comparison(df):
 def main():
     parser = argparse.ArgumentParser(description="Run mechanism analysis (Algorithm 7-3).")
     parser.add_argument(
+        "--decision_mode",
+        choices=["llm", "heuristic", "imitation", "auto"],
+        default="llm",
+        help="Reserved for pipeline consistency. Paper reproduction uses llm.",
+    )
+    parser.add_argument(
         "--thought_patterns",
         nargs="*",
         default=["simulation_results/sim_*/**/*_thought.json"],

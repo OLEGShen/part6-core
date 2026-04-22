@@ -18,7 +18,7 @@ class Rider:
     def __init__(self, rider_id, location, max_orders=5, one_day=120,
                  go_work_time=8, get_off_work_time=18, step_move_distance=30,
                  rider_num=100, role_profile=None, output_dir=None,
-                 decision_mode="auto", llm_model=None, llm_base_url=None,
+                 decision_mode="llm", llm_model=None, llm_base_url=None,
                  Tw=None, Tin=None, Ts=None, eta=None, prompt_complexity="medium"):
         self.id = rider_id
         self.pt = location
@@ -178,7 +178,7 @@ class Rider:
                 runner_step,
                 event_type="work_time",
                 param_dict=info,
-                think=str(response.get("thought", "")),
+                think=self._normalize_llm_thought(response.get("thought"), "work_time"),
                 result={
                     "go_work_time": self.go_work_time,
                     "get_off_work_time": self.get_off_work_time,
@@ -186,6 +186,8 @@ class Rider:
                 },
             )
         except Exception as exc:
+            if self.decision_mode == "llm":
+                raise LLMDecisionError(f"LLM 工作时间决策失败: {exc}") from exc
             self._decide_work_time_heuristically(runner_step, info)
             self._log_thought(
                 runner_step,
@@ -289,7 +291,7 @@ class Rider:
                 runner_step,
                 event_type="take_order",
                 param_dict=info,
-                think=str(response.get("thought", "")),
+                think=self._normalize_llm_thought(response.get("thought"), "take_order"),
                 result={
                     "selected_order_ids": selected,
                     "decision_backend": self.decision_backend,
@@ -297,6 +299,8 @@ class Rider:
             )
             return selected
         except Exception as exc:
+            if self.decision_mode == "llm":
+                raise LLMDecisionError(f"LLM 接单决策失败: {exc}") from exc
             fallback = self._take_order_heuristically(runner_step, info)
             self._log_thought(
                 runner_step,
@@ -394,6 +398,17 @@ class Rider:
         except (TypeError, ValueError):
             return default
         return min(23, max(0, hour))
+
+    def _normalize_llm_thought(self, thought, event_type):
+        text = str(thought or "").strip()
+        if text:
+            return text
+        if event_type == "work_time":
+            return (
+                f"LLM 输出未提供 thought，保留决策结果：上班 {self.go_work_time} 点，"
+                f"下班 {self.get_off_work_time} 点。"
+            )
+        return "LLM 输出未提供 thought，已按返回的订单列表执行接单。"
 
     def _log_thought(self, runner_step, event_type, param_dict, think="", mixed_thought="", result=None):
         if not self.output_dir:

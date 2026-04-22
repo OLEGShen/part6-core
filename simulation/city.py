@@ -27,7 +27,7 @@ class City:
         order_weight=SIMULATION_CONFIG.order_weight,
         seed=None,
         output_dir=None,
-        decision_mode="auto",
+        decision_mode="llm",
         llm_model=None,
         llm_base_url=None,
         business_district_num=SIMULATION_CONFIG.business_district_num,

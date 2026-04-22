@@ -37,12 +37,43 @@ class RiderLLMAgent:
 
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url) if OpenAI is not None else None
 
-    def _complexity_instruction(self) -> str:
-        if self.prompt_complexity == "high":
-            return "请综合考虑收益、风险、体力、订单空间分布与平台竞争状态，给出更完整的推理。"
+    def _complexity_instruction(self, task_type: str) -> str:
+        """Return paper-aligned prompt templates for intelligence levels.
+
+        Low: execute basic instruction only.
+        Medium: perform initial trade-off.
+        High: integrate environment sensing and strategy planning.
+        """
+
         if self.prompt_complexity == "low":
-            return "请基于最关键的 1-2 个因素快速决策。"
-        return "请在收益与风险之间做平衡决策。"
+            if task_type == "work_time":
+                return (
+                    "【低智能组】仅执行基础指令：只根据当前收入表现给出上下班时间，"
+                    "不要做长期规划，不要展开复杂推理。"
+                )
+            return (
+                "【低智能组】仅执行基础指令：优先选择最直接可执行的订单，"
+                "不要进行多目标权衡。"
+            )
+        if self.prompt_complexity == "high":
+            if task_type == "work_time":
+                return (
+                    "【高智能组】融合环境感知与策略规划：综合竞争强度、体力成本、"
+                    "短中期收益与风险，给出带有策略意图的上下班时间。"
+                )
+            return (
+                "【高智能组】融合环境感知与策略规划：综合空间分布、时间窗口、"
+                "路径成本与收益风险，给出面向当前与后续时段的接单策略。"
+            )
+        if task_type == "work_time":
+            return (
+                "【中智能组】具备初步权衡能力：在收入与体力之间进行基本平衡，"
+                "给出稳健可执行的上下班时间。"
+            )
+        return (
+            "【中智能组】具备初步权衡能力：在订单收益、距离和完成可行性之间"
+            "进行基础权衡后决策。"
+        )
 
     def _call_json(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
         try:
@@ -103,12 +134,12 @@ class RiderLLMAgent:
 {json.dumps(decision_context, ensure_ascii=False)}
 
 请你基于以上信息做出今天的工作时间决策。
-{self._complexity_instruction()}
+{self._complexity_instruction("work_time")}
 
 输出要求：
 1. 只输出 JSON。
 2. 字段必须包含：
-   - thought: 简洁说明你的思考过程
+   - thought: 必须是你基于输入上下文形成的真实推理文本，至少 25 个字，禁止输出模板化空话
    - go_to_work_time: 0 到 23 的整数
    - get_off_work_time: 0 到 23 的整数
 3. 下班时间必须大于上班时间。
@@ -136,12 +167,12 @@ class RiderLLMAgent:
 {json.dumps(candidate_orders, ensure_ascii=False)}
 
 请从候选订单中选择你要接的订单编号。
-{self._complexity_instruction()}
+{self._complexity_instruction("order")}
 
 输出要求：
 1. 只输出 JSON。
 2. 字段必须包含：
-   - thought: 简洁说明你的接单思考过程
+   - thought: 必须是你基于候选订单形成的真实推理文本，至少 25 个字，禁止输出模板化空话
    - selected_order_ids: 订单 id 列表
 3. 只能选择候选订单中的 id。
 4. 选择数量不能超过 accept_count。

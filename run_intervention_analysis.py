@@ -24,6 +24,7 @@ def simulate_condition(
     order_weight=None,
     rider_num=SIMULATION_CONFIG.rider_num,
     run_len=SIMULATION_CONFIG.run_len,
+    decision_mode="llm",
 ):
     """Run one treatment/control simulation under a fixed random seed."""
 
@@ -33,7 +34,7 @@ def simulate_condition(
         one_day=SIMULATION_CONFIG.one_day,
         order_weight=order_weight if order_weight is not None else SIMULATION_CONFIG.order_weight,
         seed=seed,
-        decision_mode="heuristic",
+        decision_mode=decision_mode,
         prompt_complexity=prompt_complexity,
     )
     for rider in city.riders.values():
@@ -192,26 +193,32 @@ def main():
     parser.add_argument("--num_runs", type=int, default=SIMULATION_CONFIG.num_runs)
     parser.add_argument("--rider_num", type=int, default=SIMULATION_CONFIG.rider_num)
     parser.add_argument("--run_len", type=int, default=SIMULATION_CONFIG.run_len)
+    parser.add_argument("--decision_mode", choices=["llm", "heuristic", "imitation", "auto"], default="llm")
     args = parser.parse_args()
 
     OUTPUT_DIR.mkdir(exist_ok=True)
     seeds = [SIMULATION_CONFIG.seed_base + index for index in range(args.num_runs)]
-    control_spec = {"prompt_complexity": "medium", "interaction_interval": 15, "order_weight": SIMULATION_CONFIG.order_weight}
+    control_spec = {
+        "prompt_complexity": "medium",
+        "interaction_interval": 15,
+        "order_weight": SIMULATION_CONFIG.order_weight,
+        "decision_mode": args.decision_mode,
+    }
     factor_definitions = {
         "Factor A: Intelligence": {
-            "High": {"prompt_complexity": "high", "interaction_interval": 15, "order_weight": SIMULATION_CONFIG.order_weight},
-            "Medium": {"prompt_complexity": "medium", "interaction_interval": 15, "order_weight": SIMULATION_CONFIG.order_weight},
-            "Low": {"prompt_complexity": "low", "interaction_interval": 15, "order_weight": SIMULATION_CONFIG.order_weight},
+            "High": {"prompt_complexity": "high", "interaction_interval": 15, "order_weight": SIMULATION_CONFIG.order_weight, "decision_mode": args.decision_mode},
+            "Medium": {"prompt_complexity": "medium", "interaction_interval": 15, "order_weight": SIMULATION_CONFIG.order_weight, "decision_mode": args.decision_mode},
+            "Low": {"prompt_complexity": "low", "interaction_interval": 15, "order_weight": SIMULATION_CONFIG.order_weight, "decision_mode": args.decision_mode},
         },
         "Factor B: Interaction": {
-            "High": {"prompt_complexity": "medium", "interaction_interval": 10, "order_weight": SIMULATION_CONFIG.order_weight},
-            "Medium": {"prompt_complexity": "medium", "interaction_interval": 15, "order_weight": SIMULATION_CONFIG.order_weight},
-            "Low": {"prompt_complexity": "medium", "interaction_interval": 20, "order_weight": SIMULATION_CONFIG.order_weight},
+            "High": {"prompt_complexity": "medium", "interaction_interval": 10, "order_weight": SIMULATION_CONFIG.order_weight, "decision_mode": args.decision_mode},
+            "Medium": {"prompt_complexity": "medium", "interaction_interval": 15, "order_weight": SIMULATION_CONFIG.order_weight, "decision_mode": args.decision_mode},
+            "Low": {"prompt_complexity": "medium", "interaction_interval": 20, "order_weight": SIMULATION_CONFIG.order_weight, "decision_mode": args.decision_mode},
         },
         "Factor C: Order Volume": {
-            "High": {"prompt_complexity": "medium", "interaction_interval": 15, "order_weight": 0.45},
-            "Medium": {"prompt_complexity": "medium", "interaction_interval": 15, "order_weight": 0.30},
-            "Low": {"prompt_complexity": "medium", "interaction_interval": 15, "order_weight": 0.18},
+            "High": {"prompt_complexity": "medium", "interaction_interval": 15, "order_weight": 0.45, "decision_mode": args.decision_mode},
+            "Medium": {"prompt_complexity": "medium", "interaction_interval": 15, "order_weight": 0.30, "decision_mode": args.decision_mode},
+            "Low": {"prompt_complexity": "medium", "interaction_interval": 15, "order_weight": 0.18, "decision_mode": args.decision_mode},
         },
     }
 

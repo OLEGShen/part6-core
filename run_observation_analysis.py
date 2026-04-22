@@ -34,6 +34,7 @@ def run_observation_experiments(
     num_runs=SIMULATION_CONFIG.num_runs,
     rider_num=SIMULATION_CONFIG.rider_num,
     run_len=SIMULATION_CONFIG.run_len,
+    decision_mode="llm",
 ):
     """Run repeated experiments with identical parameters and different seeds."""
 
@@ -49,7 +50,7 @@ def run_observation_experiments(
             order_weight=SIMULATION_CONFIG.order_weight,
             seed=seed,
             save_detail=True,
-            decision_mode="heuristic",
+            decision_mode=decision_mode,
         )
         time_series = pd.DataFrame(results["time_series"])
         final_involution = float(time_series["involution"].iloc[-1]) if not time_series.empty else 0.0
@@ -184,6 +185,7 @@ def main():
     parser.add_argument("--num_runs", type=int, default=SIMULATION_CONFIG.num_runs)
     parser.add_argument("--rider_num", type=int, default=SIMULATION_CONFIG.rider_num)
     parser.add_argument("--run_len", type=int, default=SIMULATION_CONFIG.run_len)
+    parser.add_argument("--decision_mode", choices=["llm", "heuristic", "imitation", "auto"], default="llm")
     args = parser.parse_args()
 
     OUTPUT_DIR.mkdir(exist_ok=True)
@@ -191,6 +193,7 @@ def main():
         num_runs=args.num_runs,
         rider_num=args.rider_num,
         run_len=args.run_len,
+        decision_mode=args.decision_mode,
     )
     plot_involution_distribution(summary_df)
     plot_involution_timeline(run_results)
